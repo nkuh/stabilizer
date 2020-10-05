@@ -187,8 +187,8 @@ const APP: () = {
             'static,
             'static,
             'static,
-            ethernet::EthernetDMA<'static>,
-        >,
+            ethernet::EthernetDMA<'static>>,
+        //>,
         eth_mac: ethernet::EthernetMAC,
         mac_addr: net::wire::EthernetAddress,
 
@@ -280,7 +280,7 @@ const APP: () = {
             let mut spi = dp.SPI2.spi(
                 (spi_sck, spi_miso, hal::spi::NoMosi),
                 config,
-                50.mhz(),
+                25.mhz(),
                 &clocks,
             );
 
@@ -613,7 +613,7 @@ const APP: () = {
             let store = unsafe { &mut NET_STORE };
 
             store.ip_addrs[0] = net::wire::IpCidr::new(
-                net::wire::IpAddress::v4(10, 0, 16, 99),
+                net::wire::IpAddress::v4(192, 168, 1, 90),
                 24,
             );
 
@@ -687,9 +687,8 @@ const APP: () = {
         let output: u16 = {
             let a: u16 = c.resources.adc1.read().unwrap();
             let x0 = f32::from(a as i16);
-            let y0 =
-                c.resources.iir_ch[1].update(&mut c.resources.iir_state[1], x0);
-            y0 as i16 as u16 ^ 0x8000
+            let _y0 = c.resources.iir_ch[1].update(&mut c.resources.iir_state[1], x0);
+            x0 as i16 as u16 ^ 0x8000 //return x0 niklas
         };
 
         c.resources
@@ -722,6 +721,7 @@ const APP: () = {
 
     #[idle(resources=[net_interface, pounder, mac_addr, eth_mac, iir_state, iir_ch, afe0, afe1])]
     fn idle(mut c: idle::Context) -> ! {
+        c.resources.iir_ch.lock(|iir_ch| iir_ch[0].set_pi(1.0, 0.0, 0.0).unwrap());
         let mut socket_set_entries: [_; 8] = Default::default();
         let mut sockets =
             net::socket::SocketSet::new(&mut socket_set_entries[..]);
