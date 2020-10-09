@@ -196,7 +196,9 @@ const APP: () = {
 
         #[init([[0.; 5]; 2])]
         iir_state: [iir::IIRState; 2],
-        #[init([iir::IIR { ba: [1., 0., 0., 0., 0.], y_offset: 0., y_min: -SCALE - 1., y_max: SCALE }; 2])]
+        #[init([iir::IIR { ba: [31.818184, -29.879882, 0.000000, -0.938302,0.000000], y_offset: 0., y_min: -SCALE - 1., y_max: SCALE }; 2])]
+        //#[init([iir::IIR { ba: [6.323e-1, 7.896e-3, -6.244e-1, 2.0, -1.0], y_offset: 0., y_min: -SCALE - 1., y_max: SCALE }; 2])]
+        //#[init([iir::IIR { ba: [1., 0., 0., 0., 0.], y_offset: 0., y_min: -SCALE - 1., y_max: SCALE }; 2])]
         iir_ch: [iir::IIR; 2],
     }
 
@@ -721,7 +723,7 @@ const APP: () = {
 
     #[idle(resources=[net_interface, pounder, mac_addr, eth_mac, iir_state, iir_ch, afe0, afe1])]
     fn idle(mut c: idle::Context) -> ! {
-        c.resources.iir_ch.lock(|iir_ch| iir_ch[0].set_pi(1.0, 0.0, 10.0).unwrap());
+        //c.resources.iir_ch.lock(|iir_ch| iir_ch[0].set_pi(1.0, 0.1, 10.0).unwrap());
         let mut socket_set_entries: [_; 8] = Default::default();
         let mut sockets =
             net::socket::SocketSet::new(&mut socket_set_entries[..]);
