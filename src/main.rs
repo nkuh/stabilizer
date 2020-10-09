@@ -687,8 +687,8 @@ const APP: () = {
         let output: u16 = {
             let a: u16 = c.resources.adc1.read().unwrap();
             let x0 = f32::from(a as i16);
-            let _y0 = c.resources.iir_ch[1].update(&mut c.resources.iir_state[1], x0);
-            x0 as i16 as u16 ^ 0x8000 //return x0 niklas
+            let y0 = c.resources.iir_ch[1].update(&mut c.resources.iir_state[1], x0);
+            y0 as i16 as u16 ^ 0x8000 //return x0 niklas
         };
 
         c.resources
@@ -721,7 +721,7 @@ const APP: () = {
 
     #[idle(resources=[net_interface, pounder, mac_addr, eth_mac, iir_state, iir_ch, afe0, afe1])]
     fn idle(mut c: idle::Context) -> ! {
-        c.resources.iir_ch.lock(|iir_ch| iir_ch[0].set_pi(1.0, 0.0, 0.0).unwrap());
+        c.resources.iir_ch.lock(|iir_ch| iir_ch[0].set_pi(1.0, 0.0, 10.0).unwrap());
         let mut socket_set_entries: [_; 8] = Default::default();
         let mut sockets =
             net::socket::SocketSet::new(&mut socket_set_entries[..]);
