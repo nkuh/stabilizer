@@ -97,12 +97,37 @@ impl IIR {
         self.y_offset = xo * b;
     }
 
-    pub fn update(&self, xy: &mut IIRState, x0: f32) -> f32 {
+    pub fn update(&self, xy: &mut IIRState,xy_pd: &mut IIRState, x0: f32) -> f32 {
         xy.rotate_right(1);
         xy[0] = x0;
-        let y0 = macc(self.y_offset, xy, &self.ba);
+        xy_pd.rotate_right(1);
+        xy_pd[0] = x0;
+
+        let ba_pd : IIRState = [31.818184, -29.879882, 0.000000, -0.938302,-0.000000]; 
+        let y_pd = macc(self.y_offset, xy_pd, &ba_pd); 
+        //let y_pd = max(self.y_min, min(self.y_max, y_pd));
+        xy_pd[xy_pd.len() / 2] = y_pd;
+
+        let y_i = macc(self.y_offset, xy, &self.ba);
+        let y_i = max(self.y_min, min(self.y_max, y_i));
+        xy[xy.len() / 2] = y_i;
+
+        let y0 = y_pd + y_i;
         let y0 = max(self.y_min, min(self.y_max, y0));
-        xy[xy.len() / 2] = y0;
         y0
     }
+
+    // pub fn update(&self, xy: &mut IIRState, x0: f32) -> f32 {
+    //     static mut XY2 :IIRState = [0.0;5];
+    //     XY2.rotate_right(1);
+    //     XY2[0] = x0;
+        
+
+    //     xy.rotate_right(1);
+    //     xy[0] = x0;
+    //     let y0 = macc(self.y_offset, xy, &self.ba);
+    //     let y0 = max(self.y_min, min(self.y_max, y0));
+    //     xy[xy.len() / 2] = y0;
+    //     y0
+    // }
 }
