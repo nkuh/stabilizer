@@ -29,7 +29,7 @@ fn copysign(x: f32, y: f32) -> f32 {
     }
 }
 
-fn max(x: f32, y: f32) -> f32 {
+pub fn max(x: f32, y: f32) -> f32 {
     if x > y {
         x
     } else {
@@ -37,7 +37,7 @@ fn max(x: f32, y: f32) -> f32 {
     }
 }
 
-fn min(x: f32, y: f32) -> f32 {
+pub fn min(x: f32, y: f32) -> f32 {
     if x < y {
         x
     } else {
