@@ -617,7 +617,7 @@ const APP: () = {
             let store = unsafe { &mut NET_STORE };
 
             store.ip_addrs[0] = net::wire::IpCidr::new(
-                net::wire::IpAddress::v4(192, 168, 1, 90),
+                net::wire::IpAddress::v4(172,21,24,131),
                 24,
             );
 
