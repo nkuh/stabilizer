@@ -187,8 +187,8 @@ const APP: () = {
             'static,
             'static,
             'static,
-            ethernet::EthernetDMA<'static>>,
-        //>,
+            ethernet::EthernetDMA<'static>,
+        >,
         eth_mac: ethernet::EthernetMAC,
         mac_addr: net::wire::EthernetAddress,
 
@@ -196,12 +196,8 @@ const APP: () = {
 
         #[init([[0.; 5]; 2])]
         iir_state: [iir::IIRState; 2],
-        #[init([iir::IIR { ba: [0.006279, 0.006279, 0.000000, 0.998744,-0.000000], y_offset: 0., y_min: -SCALE - 1., y_max: SCALE }; 2])]
-        //#[init([iir::IIR { ba: [1., 0., 0., 0., 0.], y_offset: 0., y_min: -SCALE - 1., y_max: SCALE }; 2])]
+        #[init([iir::IIR { ba: [1., 0., 0., 0., 0.], y_offset: 0., y_min: -SCALE - 1., y_max: SCALE }; 2])]
         iir_ch: [iir::IIR; 2],
-
-        #[init([[0.; 5]; 2])]
-        iir_state_pd: [iir::IIRState; 2],
     }
 
     #[init]
@@ -684,14 +680,15 @@ const APP: () = {
         }
     }
 
-    #[task(binds = SPI3, resources = [adc1, dac1, iir_state,iir_state_pd, iir_ch], priority = 2)]
+    #[task(binds = SPI3, resources = [adc1, dac1, iir_state, iir_ch], priority = 2)]
     fn spi3(c: spi3::Context) {
         c.resources.adc1.spi.ifcr.write(|w| w.eotc().set_bit());
 
         let output: u16 = {
             let a: u16 = c.resources.adc1.read().unwrap();
             let x0 = f32::from(a as i16);
-            let y0 = c.resources.iir_ch[1].update(&mut c.resources.iir_state[1], &mut c.resources.iir_state_pd[1], x0);
+            let y0 =
+                c.resources.iir_ch[1].update(&mut c.resources.iir_state[1], x0);
             y0 as i16 as u16 ^ 0x8000
         };
 
@@ -703,7 +700,7 @@ const APP: () = {
         c.resources.dac1.send(output).unwrap();
     }
 
-    #[task(binds = SPI2, resources = [adc0, dac0, iir_state,iir_state_pd, iir_ch], priority = 2)]
+    #[task(binds = SPI2, resources = [adc0, dac0, iir_state, iir_ch], priority = 2)]
     fn spi2(c: spi2::Context) {
         c.resources.adc0.spi.ifcr.write(|w| w.eotc().set_bit());
 
@@ -711,7 +708,7 @@ const APP: () = {
             let a: u16 = c.resources.adc0.read().unwrap();
             let x0 = f32::from(a as i16);
             let y0 =
-                c.resources.iir_ch[0].update(&mut c.resources.iir_state[0], &mut c.resources.iir_state_pd[0], x0);
+                c.resources.iir_ch[0].update(&mut c.resources.iir_state[0], x0);
             y0 as i16 as u16 ^ 0x8000
         };
 
@@ -725,7 +722,6 @@ const APP: () = {
 
     #[idle(resources=[net_interface, pounder, mac_addr, eth_mac, iir_state, iir_ch, afe0, afe1])]
     fn idle(mut c: idle::Context) -> ! {
-        //c.resources.iir_ch.lock(|iir_ch| iir_ch[0].set_pi(1.0, 0.1, 10.0).unwrap());
         let mut socket_set_entries: [_; 8] = Default::default();
         let mut sockets =
             net::socket::SocketSet::new(&mut socket_set_entries[..]);
