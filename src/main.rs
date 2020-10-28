@@ -693,11 +693,9 @@ const APP: () = {
             let a: u16 = c.resources.adc1.read().unwrap();
             let x0 = f32::from(a as i16);
             let y_iir = c.resources.iir_ch[1].update(&mut c.resources.iir_state[1], x0);
-            let y_iir_2 = c.resources.iir_2_ch[1].update(&mut c.resources.iir_2_state[1], x0);
-            let y0 = y_iir + y_iir_2;
-            let y0 = iir::max(-SCALE-1., iir::min(SCALE, y0));
+            let y_iir_2 = c.resources.iir_2_ch[1].update(&mut c.resources.iir_2_state[1], y_iir);
 
-            y0 as i16 as u16 ^ 0x8000
+            y_iir_2 as i16 as u16 ^ 0x8000
         };
 
         c.resources
