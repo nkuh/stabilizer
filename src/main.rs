@@ -39,6 +39,9 @@ use smoltcp as net;
 use smoltcp::wire::Ipv4Address;
 use smoltcp::iface::Routes;
 use stm32h7_ethernet as ethernet;
+use smoltcp::managed::ManagedMap;
+use smoltcp::iface::Route;
+use smoltcp::wire::Ipv4Cidr;
 
 use heapless::{consts::*, String};
 
@@ -88,6 +91,8 @@ static mut NET_STORE: NetStorage = NetStorage {
 
     neighbor_cache: [None; 8],
 };
+
+static mut routes_storage: [ManagedMap<Ipv4Cidr, Route>] = [None; 2];
 
 const SCALE: f32 = ((1 << 15) - 1) as f32;
 
@@ -626,7 +631,7 @@ const APP: () = {
 
             let default_v4_gw = Ipv4Address::new(172,21,24,1);
             //let default_v6_gw = Ipv6Address::new(0xfe80, 0, 0, 0, 0, 0, 0, 0x100);
-            let mut routes_storage = [None; 2];
+            
             let mut routes = Routes::new(&mut routes_storage[..]);
             routes.add_default_ipv4_route(default_v4_gw).unwrap();
             //routes.add_default_ipv6_route(default_v6_gw).unwrap();
