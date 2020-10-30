@@ -36,8 +36,6 @@ use stm32h7xx_hal::prelude::*;
 use embedded_hal::digital::v2::{InputPin, OutputPin};
 
 use smoltcp as net;
-use smoltcp::wire::Ipv4Address;
-use smoltcp::iface::Routes;
 use stm32h7_ethernet as ethernet;
 
 use heapless::{consts::*, String};
@@ -624,13 +622,6 @@ const APP: () = {
                 24,
             );
 
-            let default_v4_gw = Ipv4Address::new(172,21,24,1);
-            //let default_v6_gw = Ipv6Address::new(0xfe80, 0, 0, 0, 0, 0, 0, 0x100);
-            let mut routes_storage = [None; 2];
-            let mut routes = Routes::new(&mut routes_storage[..]);
-            routes.add_default_ipv4_route(default_v4_gw).unwrap();
-            //routes.add_default_ipv6_route(default_v6_gw).unwrap();
-
             let neighbor_cache =
                 net::iface::NeighborCache::new(&mut store.neighbor_cache[..]);
 
@@ -638,7 +629,6 @@ const APP: () = {
                 .ethernet_addr(mac_addr)
                 .neighbor_cache(neighbor_cache)
                 .ip_addrs(&mut store.ip_addrs[..])
-                .routes(routes)
                 .finalize();
 
             (interface, eth_mac)
