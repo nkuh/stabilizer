@@ -36,6 +36,8 @@ use stm32h7xx_hal::prelude::*;
 use embedded_hal::digital::v2::{InputPin, OutputPin};
 
 use smoltcp as net;
+use smoltcp::wire::Ipv4Address;
+use smoltcp::iface::Routes;
 use stm32h7_ethernet as ethernet;
 
 use heapless::{consts::*, String};
@@ -86,10 +88,6 @@ static mut NET_STORE: NetStorage = NetStorage {
 
     neighbor_cache: [None; 8],
 };
-
-static mut ROUTES_STORAGE: [core::option::Option<(smoltcp::wire::IpCidr, smoltcp::iface::Route)>; 2]= [None; 2];
-
-
 
 const SCALE: f32 = ((1 << 15) - 1) as f32;
 
@@ -191,8 +189,8 @@ const APP: () = {
             'static,
             'static,
             'static,
-            ethernet::EthernetDMA<'static>>,
-        //>,
+            ethernet::EthernetDMA<'static>,
+        >,
         eth_mac: ethernet::EthernetMAC,
         mac_addr: net::wire::EthernetAddress,
 
@@ -626,6 +624,13 @@ const APP: () = {
                 24,
             );
 
+            let default_v4_gw = Ipv4Address::new(172,21,24,1);
+            //let default_v6_gw = Ipv6Address::new(0xfe80, 0, 0, 0, 0, 0, 0, 0x100);
+            let mut routes_storage = [None; 2];
+            let mut routes = Routes::new(&mut routes_storage[..]);
+            routes.add_default_ipv4_route(default_v4_gw).unwrap();
+            //routes.add_default_ipv6_route(default_v6_gw).unwrap();
+
             let neighbor_cache =
                 net::iface::NeighborCache::new(&mut store.neighbor_cache[..]);
 
@@ -633,6 +638,7 @@ const APP: () = {
                 .ethernet_addr(mac_addr)
                 .neighbor_cache(neighbor_cache)
                 .ip_addrs(&mut store.ip_addrs[..])
+                .routes(routes)
                 .finalize();
 
             (interface, eth_mac)
@@ -730,7 +736,7 @@ const APP: () = {
         c.resources.dac0.send(output).unwrap();
     }
 
-    #[idle(resources=[net_interface, pounder, mac_addr, eth_mac, iir_state, iir_ch, afe0, afe1])]
+    #[idle(resources=[net_interface, pounder, mac_addr, eth_mac, iir_state, iir_ch, iir_2_state, iir_2_ch, afe0, afe1])]
     fn idle(mut c: idle::Context) -> ! {
         let mut socket_set_entries: [_; 8] = Default::default();
         let mut sockets =
@@ -786,6 +792,18 @@ const APP: () = {
                                             y0: iir_state[0][2],
                                             x1: iir_state[1][0],
                                             y1: iir_state[1][2],
+                                    });
+
+                                    Ok::<server::Status, ()>(state)
+                                }),
+                                "stabilizer/iir_2/state": (|| {
+                                    let state = c.resources.iir_2_state.lock(|iir_2_state|
+                                        server::Status {
+                                            t: time,
+                                            x0: iir_2_state[0][0],
+                                            y0: iir_2_state[0][2],
+                                            x1: iir_2_state[1][0],
+                                            y1: iir_2_state[1][2],
                                     });
 
                                     Ok::<server::Status, ()>(state)
@@ -847,6 +865,28 @@ const APP: () = {
                                         }
 
                                         iir_ch[req.channel as usize] = req.iir;
+
+                                        Ok::<server::IirRequest, ()>(req)
+                                    })
+                                }),
+                                "stabilizer/iir_20/state": server::IirRequest, (|req: server::IirRequest| {
+                                    c.resources.iir_2_ch.lock(|iir_2_ch| {
+                                        if req.channel > 1 {
+                                            return Err(());
+                                        }
+
+                                        iir_2_ch[req.channel as usize] = req.iir;
+
+                                        Ok::<server::IirRequest, ()>(req)
+                                    })
+                                }),
+                                "stabilizer/iir_21/state": server::IirRequest, (|req: server::IirRequest| {
+                                    c.resources.iir_2_ch.lock(|iir_2_ch| {
+                                        if req.channel > 1 {
+                                            return Err(());
+                                        }
+
+                                        iir_2_ch[req.channel as usize] = req.iir;
 
                                         Ok::<server::IirRequest, ()>(req)
                                     })
