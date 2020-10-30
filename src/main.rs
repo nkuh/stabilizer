@@ -740,7 +740,7 @@ const APP: () = {
         c.resources.dac0.send(output).unwrap();
     }
 
-    #[idle(resources=[net_interface, pounder, mac_addr, eth_mac, iir_state, iir_ch, iir_2_state, iir_2_ch, afe0, afe1])]
+    #[idle(resources=[net_interface, pounder, mac_addr, eth_mac, iir_state, iir_ch, afe0, afe1])]
     fn idle(mut c: idle::Context) -> ! {
         let mut socket_set_entries: [_; 8] = Default::default();
         let mut sockets =
@@ -796,18 +796,6 @@ const APP: () = {
                                             y0: iir_state[0][2],
                                             x1: iir_state[1][0],
                                             y1: iir_state[1][2],
-                                    });
-
-                                    Ok::<server::Status, ()>(state)
-                                }),
-                                "stabilizer/iir_2/state": (|| {
-                                    let state = c.resources.iir_2_state.lock(|iir_2_state|
-                                        server::Status {
-                                            t: time,
-                                            x0: iir_2_state[0][0],
-                                            y0: iir_2_state[0][2],
-                                            x1: iir_2_state[1][0],
-                                            y1: iir_2_state[1][2],
                                     });
 
                                     Ok::<server::Status, ()>(state)
@@ -869,28 +857,6 @@ const APP: () = {
                                         }
 
                                         iir_ch[req.channel as usize] = req.iir;
-
-                                        Ok::<server::IirRequest, ()>(req)
-                                    })
-                                }),
-                                "stabilizer/iir_20/state": server::IirRequest, (|req: server::IirRequest| {
-                                    c.resources.iir_2_ch.lock(|iir_2_ch| {
-                                        if req.channel > 1 {
-                                            return Err(());
-                                        }
-
-                                        iir_2_ch[req.channel as usize] = req.iir;
-
-                                        Ok::<server::IirRequest, ()>(req)
-                                    })
-                                }),
-                                "stabilizer/iir_21/state": server::IirRequest, (|req: server::IirRequest| {
-                                    c.resources.iir_2_ch.lock(|iir_2_ch| {
-                                        if req.channel > 1 {
-                                            return Err(());
-                                        }
-
-                                        iir_2_ch[req.channel as usize] = req.iir;
 
                                         Ok::<server::IirRequest, ()>(req)
                                     })
