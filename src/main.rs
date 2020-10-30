@@ -291,7 +291,7 @@ const APP: () = {
             let mut spi = dp.SPI2.spi(
                 (spi_sck, spi_miso, hal::spi::NoMosi),
                 config,
-                50.mhz(),
+                50.khz(),
                 &clocks,
             );
 
