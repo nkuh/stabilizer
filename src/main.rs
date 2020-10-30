@@ -187,8 +187,8 @@ const APP: () = {
             'static,
             'static,
             'static,
-            ethernet::EthernetDMA<'static>,
-        >,
+            ethernet::EthernetDMA<'static>>,
+        //>,
         eth_mac: ethernet::EthernetMAC,
         mac_addr: net::wire::EthernetAddress,
 
