@@ -204,6 +204,11 @@ const APP: () = {
         iir_state: [iir::IIRState; 2],
         #[init([iir::IIR { ba: [1., 0., 0., 0., 0.], y_offset: 0., y_min: -SCALE - 1., y_max: SCALE }; 2])]
         iir_ch: [iir::IIR; 2],
+
+        #[init([[0.; 5]; 2])]
+        iir_2_state: [iir::IIRState; 2],
+        #[init([iir::IIR { ba: [0., 0., 0., 0., 0.], y_offset: 0., y_min: -SCALE - 1., y_max: SCALE }; 2])]
+        iir_2_ch: [iir::IIR; 2],
     }
 
     #[init]
@@ -322,7 +327,7 @@ const APP: () = {
             let mut spi = dp.SPI3.spi(
                 (spi_sck, spi_miso, hal::spi::NoMosi),
                 config,
-                50.mhz(),
+                50.khz(),
                 &clocks,
             );
 
@@ -619,11 +624,13 @@ const APP: () = {
             let store = unsafe { &mut NET_STORE };
 
             store.ip_addrs[0] = net::wire::IpCidr::new(
-                net::wire::IpAddress::v4(10, 0, 16, 99),
+                //net::wire::IpAddress::v4(10, 0, 16, 99),
+                net::wire::IpAddress::v4(172, 21, 24, 131),
                 24,
             );
 
-            let default_v4_gw = Ipv4Address::new(10, 0, 16, 1);
+            let default_v4_gw = Ipv4Address::new(172, 21, 24, 1);
+            //let default_v4_gw = Ipv4Address::new(10, 0, 16, 1);
             let mut routes = Routes::new(&mut store.routes_storage[..]);
             routes.add_default_ipv4_route(default_v4_gw).unwrap();
 
@@ -691,16 +698,19 @@ const APP: () = {
         }
     }
 
-    #[task(binds = SPI3, resources = [adc1, dac1, iir_state, iir_ch], priority = 2)]
+    #[task(binds = SPI3, resources = [adc1, dac1, iir_state, iir_ch, iir_2_state, iir_2_ch], priority = 2)]
     fn spi3(c: spi3::Context) {
         c.resources.adc1.spi.ifcr.write(|w| w.eotc().set_bit());
 
         let output: u16 = {
             let a: u16 = c.resources.adc1.read().unwrap();
             let x0 = f32::from(a as i16);
-            let y0 =
+            let y_iir =
                 c.resources.iir_ch[1].update(&mut c.resources.iir_state[1], x0);
-            y0 as i16 as u16 ^ 0x8000
+            let y_iir_2 = c.resources.iir_2_ch[1]
+                .update(&mut c.resources.iir_2_state[1], y_iir);
+
+            y_iir_2 as i16 as u16 ^ 0x8000
         };
 
         c.resources
@@ -731,7 +741,7 @@ const APP: () = {
         c.resources.dac0.send(output).unwrap();
     }
 
-    #[idle(resources=[net_interface, pounder, mac_addr, eth_mac, iir_state, iir_ch, afe0, afe1])]
+    #[idle(resources=[net_interface, pounder, mac_addr, eth_mac, iir_state, iir_ch, iir_2_state, iir_2_ch, afe0, afe1])]
     fn idle(mut c: idle::Context) -> ! {
         let mut socket_set_entries: [_; 8] = Default::default();
         let mut sockets =
@@ -787,6 +797,18 @@ const APP: () = {
                                             y0: iir_state[0][2],
                                             x1: iir_state[1][0],
                                             y1: iir_state[1][2],
+                                    });
+
+                                    Ok::<server::Status, ()>(state)
+                                }),
+                                "stabilizer/iir_2/state": (|| {
+                                    let state = c.resources.iir_2_state.lock(|iir_2_state|
+                                        server::Status {
+                                            t: time,
+                                            x0: iir_2_state[0][0],
+                                            y0: iir_2_state[0][2],
+                                            x1: iir_2_state[1][0],
+                                            y1: iir_2_state[1][2],
                                     });
 
                                     Ok::<server::Status, ()>(state)
@@ -848,6 +870,28 @@ const APP: () = {
                                         }
 
                                         iir_ch[req.channel as usize] = req.iir;
+
+                                        Ok::<server::IirRequest, ()>(req)
+                                    })
+                                }),
+                                "stabilizer/iir_20/state": server::IirRequest, (|req: server::IirRequest| {
+                                    c.resources.iir_2_ch.lock(|iir_2_ch| {
+                                        if req.channel > 1 {
+                                            return Err(());
+                                        }
+
+                                        iir_2_ch[req.channel as usize] = req.iir;
+
+                                        Ok::<server::IirRequest, ()>(req)
+                                    })
+                                }),
+                                "stabilizer/iir_21/state": server::IirRequest, (|req: server::IirRequest| {
+                                    c.resources.iir_2_ch.lock(|iir_2_ch| {
+                                        if req.channel > 1 {
+                                            return Err(());
+                                        }
+
+                                        iir_2_ch[req.channel as usize] = req.iir;
 
                                         Ok::<server::IirRequest, ()>(req)
                                     })
