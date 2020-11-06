@@ -699,12 +699,19 @@ const APP: () = {
 
         let output: u16 = {
             let a: u16 = c.resources.adc1.read().unwrap();
-            let x0 = f32::from(a as i16);
-            let y_iir = c.resources.iir_ch[1][0]
+            let mut x0 = f32::from(a as i16);
+            /*let y_iir = c.resources.iir_ch[1][0]
                 .update(&mut c.resources.iir_state[1][0], x0);
             let y_iir_b = c.resources.iir_ch[1][1]
-                .update(&mut c.resources.iir_state[1][1], y_iir);
-            y_iir_b as i16 as u16 ^ 0x8000
+                .update(&mut c.resources.iir_state[1][1], y_iir);*/
+
+            for i in 0..c.resources.iir_state[1].len() {
+                x0 = c.resources.iir_ch[1][i]
+                    .update(&mut c.resources.iir_state[1][i], x0);
+            }
+            let y0 = x0;
+            y0 as i16 as u16 ^ 0x8000
+            //y_iir_b as i16 as u16 ^ 0x8000
         };
 
         c.resources
@@ -721,12 +728,18 @@ const APP: () = {
 
         let output: u16 = {
             let a: u16 = c.resources.adc0.read().unwrap();
-            let x0 = f32::from(a as i16);
-            let y_iir = c.resources.iir_ch[0][0]
+            let mut x0 = f32::from(a as i16);
+            /*let y_iir = c.resources.iir_ch[0][0]
                 .update(&mut c.resources.iir_state[0][0], x0);
             let y_iir_b = c.resources.iir_ch[0][1]
-                .update(&mut c.resources.iir_state[0][1], y_iir);
-            y_iir_b as i16 as u16 ^ 0x8000
+                .update(&mut c.resources.iir_state[0][1], y_iir);*/
+            for i in 0..c.resources.iir_state[0].len() {
+                x0 = c.resources.iir_ch[0][i]
+                    .update(&mut c.resources.iir_state[0][i], x0);
+            }
+            let y0 = x0;
+            y0 as i16 as u16 ^ 0x8000
+            //y_iir_b as i16 as u16 ^ 0x8000
         };
 
         c.resources
