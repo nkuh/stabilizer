@@ -16,8 +16,10 @@ class StabilizerConfig:
     async def connect(self, host, port=1235):
         self.reader, self.writer = await asyncio.open_connection(host, port)
 
-    async def set(self, channel, iir):
+    async def set(self, channel, cascade, iir):
         value = OD([("channel", channel), ("iir", iir.as_dict())])
+        if cascade != 0:
+            channel = "_{}{}".format(chr(ord('a')+cascade),channel)
         request = {
             "req": "Write",
             "attribute": "stabilizer/iir{}/state".format(channel),
@@ -75,6 +77,50 @@ class IIR:
         self.ba[3] = a1
         self.ba[4] = 0.
 
+    def configure_pii(self, kp=1., f_i=1000., f_ii=0.000001, f_ilim=80.):
+        pi = np.pi
+        Ts = self.t_update
+        T_i = 1/(f_i*2*pi)
+        T_i2 = 1/(f_ii*2*pi)
+        T_ilim = 1/(f_ilim*2*pi)
+
+        b0 = kp*((1+Ts/(2*T_i2))/(2*T_i/Ts+T_i/T_ilim)+1)
+        b1 = kp*(Ts*Ts/(T_i2*T_i)-4)/(Ts/T_ilim+2)
+        b2 = kp*((Ts/(2*T_i*T_i2)-2/T_ilim-1/T_i)/(2/Ts+1/T_ilim)+1)
+        a1 = -4/(Ts/T_ilim+2)
+        a2 = 4/(Ts/T_ilim+2)-1
+        
+        #TODO check realizability
+
+        self.ba[0] = b0
+        self.ba[1] = b1
+        self.ba[2] = b2
+        self.ba[3] = -a1
+        self.ba[4] = -a2
+
+    def configure_pd(self, kp=1., f_d=12000., g=20.):
+        Ts = self.t_update
+        pi = np.pi
+        f_dtilde = pi*f_d*Ts
+        b2 = 0
+        b1 = np.float32(-kp*((1-f_dtilde)/(1/g+f_dtilde)))
+        b0 = np.float32(kp*((1+f_dtilde)/(1/g+f_dtilde)))
+        a2 = 0
+        a1 = np.float32(-(1/g-f_dtilde)/(1/g+f_dtilde))
+
+        kp_eff = (b0+b1)/(1+a1)
+        f_d_eff = (b0+b1)/((b0-b1)*pi*Ts)
+        g_eff = (1+a1)*(b0-b1)/((1-a1)*(b0+b1))
+        error = max(abs((kp_eff/kp)-1), abs((f_d_eff/f_d)-1), abs((g_eff/g)-1))
+        if error > 0.01:
+            raise Warning("realizable transfer function differs")
+
+        self.ba[0] = b0
+        self.ba[1] = b1
+        self.ba[2] = b2
+        self.ba[3] = -a1
+        self.ba[4] = -a2
+
     def set_x_offset(self, o):
         b = self.ba[:3].sum()*self.full_scale
         self.y_offset = b*o
@@ -93,6 +139,8 @@ if __name__ == "__main__":
     p.add_argument("-i", "--integral-gain", default=0., type=float,
                    help="Integral gain, in units of Hz, "
                         "sign taken from proportional-gain")
+    p.add_argument("-k", "--cascade", default=0, type=int, 
+                    help="Cascade# of selected channel")
 
     args = p.parse_args()
 
@@ -102,11 +150,14 @@ if __name__ == "__main__":
 
     async def main():
         i = IIR()
-        i.configure_pi(args.proportional_gain, args.integral_gain)
+        #i.configure_pi(args.proportional_gain, args.integral_gain)
+        #i.configure_pd()
+        i.configure_pii()
         i.set_x_offset(args.offset)
         s = StabilizerConfig()
         await s.connect(args.stabilizer)
         assert args.channel in range(2)
-        r = await s.set(args.channel, i)
+        assert args.cascade in range(2)
+        r = await s.set(args.channel, args.cascade, i)
 
     loop.run_until_complete(main())
