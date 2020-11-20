@@ -4,8 +4,29 @@ from collections import OrderedDict as OD
 import logging
 
 import numpy as np
+from scipy import signal
 
 logger = logging.getLogger()
+
+
+def compare(a,b):
+    a = -bilinear_transform(a)/(2*np.pi)
+    b = -bilinear_transform(b)/(2*np.pi)
+    diff = abs(a-b)
+    if diff > 1:
+        print("Warning")
+    if min(abs(a), abs(b) != 0.):
+        ratio = max(a, b)/min(a, b)
+        if (ratio-1) > 0.01:
+            print("Warning")
+    
+def bilinear_transform(z):
+    T = IIR.t_update
+    return (2/T)*(z-1.)/(z+1.)
+
+def bilinear_inverse(s):
+    T = IIR.t_update
+    return (1+T*s/2)/(1-T*s/2)   
 
 
 class StabilizerError(Exception):
@@ -76,27 +97,29 @@ class IIR:
         self.ba[2] = 0.
         self.ba[3] = a1
         self.ba[4] = 0.
-
-    def configure_pii(self, kp=1., f_i=1000., f_ii=0.000001, f_ilim=80.):
-        pi = np.pi
-        Ts = self.t_update
-        T_i = 1/(f_i*2*pi)
-        T_i2 = 1/(f_ii*2*pi)
-        T_ilim = 1/(f_ilim*2*pi)
-
-        b0 = kp*((1+Ts/(2*T_i2))/(2*T_i/Ts+T_i/T_ilim)+1)
-        b1 = kp*(Ts*Ts/(T_i2*T_i)-4)/(Ts/T_ilim+2)
-        b2 = kp*((Ts/(2*T_i*T_i2)-2/T_ilim-1/T_i)/(2/Ts+1/T_ilim)+1)
-        a1 = -4/(Ts/T_ilim+2)
-        a2 = 4/(Ts/T_ilim+2)-1
         
-        #TODO check realizability
-
-        self.ba[0] = b0
-        self.ba[1] = b1
-        self.ba[2] = b2
-        self.ba[3] = -a1
-        self.ba[4] = -a2
+    def configure_pii(self, kp=1., f_i=1000., f_ii=80.01, f_ilim=80.):
+        self.z = [bilinear_inverse(-2*np.pi*f_ii), bilinear_inverse(-2*np.pi*f_i)]
+        self.p = [bilinear_inverse(-2*np.pi*0), bilinear_inverse(-2*np.pi*f_ilim)]
+        self.k = kp
+        self.zpk = signal.ZerosPolesGain(self.z, self.p, self.k, dt=self.t_update)
+        
+        # turn into TF to get b's and a's
+        self.tf = self.zpk.to_tf()
+        # round to f32        
+        self.ba[0:3] = np.float32(self.tf.num[0:3])
+        self.ba[3] = np.float32(-self.tf.den[1])
+        self.ba[4] = np.float32(-self.tf.den[2])
+        # get rounded zpk
+        self.zpk_f32 = signal.TransferFunction([self.ba[0],self.ba[1],self.ba[2]],[np.float32(1.),-self.ba[3],-self.ba[4]],dt=self.t_update).to_zpk()
+    
+    def check(self):
+        #if self.zpk approx. equal to self.zpk_f32 -> everything fine 
+        compare( self.zpk.zeros[0],self.zpk_f32.zeros[0])
+        compare( self.zpk.zeros[1],self.zpk_f32.zeros[1])
+        compare( self.zpk.poles[0],self.zpk_f32.poles[0])
+        compare( self.zpk.poles[1],self.zpk_f32.poles[1])
+        compare( self.zpk.gain,self.zpk_f32.gain)
 
     def configure_pd(self, kp=1., f_d=12000., g=20.):
         Ts = self.t_update
@@ -153,6 +176,7 @@ if __name__ == "__main__":
         #i.configure_pi(args.proportional_gain, args.integral_gain)
         #i.configure_pd()
         i.configure_pii()
+        i.check()
         i.set_x_offset(args.offset)
         s = StabilizerConfig()
         await s.connect(args.stabilizer)
